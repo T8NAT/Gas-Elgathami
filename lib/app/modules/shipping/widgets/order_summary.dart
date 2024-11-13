@@ -16,7 +16,8 @@ class OrderSummay extends StatelessWidget {
     this.shippingCharge,
     this.discount,
     this.total,
-    this.floorIndex = 0, // إضافة floorIndex كخاصية اختيارية
+    this.floorIndex = 0,
+    this.areaIndex = 0,// إضافة floorIndex كخاصية اختيارية
     this.onTap,
     this.buttonText,
   });
@@ -26,7 +27,9 @@ class OrderSummay extends StatelessWidget {
   final String? shippingCharge;
   final dynamic discount;
   final double? total;
-  final int floorIndex; // المتغير المضاف للطابق المختار
+  final int floorIndex;
+
+  final int areaIndex;// المتغير المضاف للطابق المختار
   final void Function()? onTap;
   final String? buttonText;
 
@@ -35,7 +38,7 @@ class OrderSummay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // حساب التكلفة الإضافية بناءً على قيمة الطابق
-    double adjustedTotal = total! + (floorIndex * 5);
+    double adjustedTotal = total! + floorIndex + areaIndex;
 
     return Container(
       width: double.infinity,

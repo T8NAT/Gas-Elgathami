@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,11 +22,14 @@ import '../../payment/views/payment_screen.dart';
 import '../../profile/widgets/add_new_address.dart';
 import '../../profile/widgets/edit_address.dart';
 import '../controller/show_address_controller.dart';
+import '../model/area_model.dart';
+import '../model/floor_model.dart';
 import '../widgets/add_button.dart';
 import '../widgets/address_widget.dart';
 import '../widgets/edit_button.dart';
 import '../widgets/order_summary.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 class ShippingInformationScreen extends StatefulWidget {
   const ShippingInformationScreen({super.key});
 
@@ -35,20 +40,99 @@ class ShippingInformationScreen extends StatefulWidget {
 
 class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
 
-  int? selectedFloorIndex;
-  int? selectedAreaIndex;
+ // int? selectedFloorIndex;
+ // int? selectedAreaIndex;
 
-  final List<String> floors = ["Floor 1", "Floor 2", "Floor 3"];
-  final List<String> areas = ["Area A", "Area B", "Area C"];
+  int totalPrice = 0;
 
-  void sendDataToApi() {
-    if (selectedFloorIndex != null && selectedAreaIndex != null) {
-      int floorId = selectedFloorIndex!; // الـ id للطابق هو الـ index
-      int areaId = selectedAreaIndex!; // الـ id للمنطقة هو الـ index
-      print("Sending floor ID: $floorId, area ID: $areaId");
-      // هنا يمكنك إرسال الـ floorId و areaId إلى API
+  int? selectedFloorId;
+
+  int? selectedAreaId;
+
+
+  List<Floor> floors = [];
+   List<Area> areas = [];
+
+
+  Future<void> fetchFloors() async {
+    final response = await http.get(Uri.parse('https://gas.t8nat.cloud/api/floor'));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body)['data'];
+      setState(() {
+        floors = List<Floor>.from(data.map((item) => Floor.fromJson(item)));
+      });
+    } else {
+      // Handle error
+      print('Failed to load floors');
     }
   }
+
+  Future<void> fetchAreas() async {
+    final response = await http.get(Uri.parse('https://gas.t8nat.cloud/api/area'));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body)['data'];
+      setState(() {
+        areas = List<Area>.from(data.map((item) => Area.fromJson(item)));
+      });
+    } else {
+      // Handle error
+      print('Failed to load areas');
+    }
+  }
+
+  int floorPrice = 0; // لتخزين سعر الطابق
+  int areaPrice = 0; // لتخزين سعر المنطقة
+
+  void FloorApi(int floorId) async {
+    if (selectedFloorId != null) {
+      final response = await http.get(
+        Uri.parse("https://gas.t8nat.cloud/api/floor/$floorId"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          floorPrice = data['data']['price']; // تحديث floorPrice
+          updateTotalPrice(); // تحديث المجموع الكلي
+        } else {
+          print('Error in API response: ${data['message']}');
+        }
+      } else {
+        print('Failed to load data');
+      }
+    }
+  }
+
+  void AreaApi(int areaId) async {
+    if (selectedAreaId != null) {
+      final response = await http.get(
+        Uri.parse("https://gas.t8nat.cloud/api/area/$areaId"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          areaPrice = data['data']['price']; // تحديث areaPrice
+          updateTotalPrice(); // تحديث المجموع الكلي
+        } else {
+          print('Error in API response: ${data['message']}');
+        }
+      } else {
+        print('Failed to load data');
+      }
+    }
+  }
+
+  void updateTotalPrice() {
+    setState(() {
+      totalPrice = floorPrice + areaPrice; // حساب المجموع الكلي
+    });
+  }
+
   bool isDelivery = true;
   final showAddressController = Get.put(ShowAddressController());
   final couponController = Get.put(CouponController());
@@ -63,6 +147,8 @@ class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
     showAddressController.fetchOutlets();
     showAddressController.fetchShippingArea();
     paymentController.fetchPaymentMethods();
+    fetchFloors();
+    fetchAreas();
     showAddressController.selectedAddressIndex.value = -1;
     showAddressController.selectedBillingAddressIndex.value = -1;
   }
@@ -724,56 +810,119 @@ class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
                   SizedBox(
                     height: 24.h,
                   ),
-                  Row(
+  Column(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      DropdownButton<int>(
-                        hint: Text("Select Floor"),
-                        value: selectedFloorIndex,
-                        onChanged: (int? newIndex) {
-                          setState(() {
-                            selectedFloorIndex = newIndex ?? 0; // إذا كانت القيمة null، تعيينها إلى صفر
-                          });
-                          sendDataToApi();
-                        },
-                        items: floors.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          String name = entry.value;
-                          return DropdownMenuItem<int>(
-                            value: index,
-                            child: Text(name),
-                          );
-                        }).toList(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(color: Colors.grey, width: 1.0),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  isExpanded: true,
+                                  alignment: Alignment.center, // لتوسيط النص داخل الدروب داون
+                                  hint: Center(
+                                    child: Text(
+                                      "قم بإختيار الطابـق",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                  value: selectedFloorId,
+                                  onChanged: (int? newIndex) {
+                                    setState(() {
+                                      selectedFloorId = newIndex;
+                                    });
+                                    FloorApi(selectedFloorId!);
+                                  },
+                                  items: floors.map((floor) {
+                                    return DropdownMenuItem<int>(
+                                      value: floor.id,
+                                      child: Center(
+                                        child: Text(
+                                          floor.floorName,
+                                          style: TextStyle(fontSize: 16.0, color: Colors.black),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      DropdownButton<int>(
-                        hint: Text("Select Area"),
-                        value: selectedAreaIndex,
-                        onChanged: (int? newIndex) {
-                          setState(() {
-                            selectedAreaIndex = newIndex ?? 0; // تعيين قيمة افتراضية عند null
-                          });
-                          sendDataToApi();
-                        },
-                        items: areas.asMap().entries.map((entry) {
-                          int index = entry.key;
-                          String name = entry.value;
-                          return DropdownMenuItem<int>(
-                            value: index,
-                            child: Text(name),
-                          );
-                        }).toList(),
+SizedBox(height: 5,),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8.0),
+                                border: Border.all(color: Colors.grey, width: 1.0),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.2),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  isExpanded: true,
+                                  alignment: Alignment.center, // لتوسيط النص داخل القائمة
+                                  hint: Center(
+                                    child: Text(
+                                      "قم بإختيار المنطـقة",
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  ),
+                                  value: selectedAreaId,
+                                  onChanged: (int? newIndex) {
+                                    setState(() {
+                                      selectedAreaId = newIndex;
+                                    });
+                                    AreaApi(selectedAreaId!);
+                                  },
+                                  items: areas.map((area) {
+                                    return DropdownMenuItem<int>(
+                                      value: area.id,
+                                      child: Center(
+                                        child: Text(
+                                          area.areaName,
+                                          style: TextStyle(fontSize: 16.0, color: Colors.black),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+
                     ],
                   ),
-                  // InkWell(
-                  //   onTap: () {
-                  //     openCoupon();
-                  //   },
-                  //
-                  // ),
-                  SizedBox(
-                    height: 32.h,
-                  ),
+                  SizedBox(height: 32.h),
                   Obx(() {
                     return OrderSummay(
                       subTotal: cartController.totalPrice,
@@ -787,25 +936,14 @@ class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
                           ? 0
                           : couponController.applyCouponModel.value.data
                           ?.convertDiscount ?? "0",
-                      total: cartController.totalPrice > 0 &&
-                          couponController.applyCouponStatus.value == true
-                          ? ((cartController.totalPrice +
+                      total: (cartController.totalPrice +
                           cartController.totalTax +
                           (isDelivery == false
                               ? 0
                               : (cartController.productShippingCharge +
-                              cartController.shippingAreaCost.value))) -
-                          (double.parse(couponController
-                              .applyCouponModel.value.data!.convertDiscount
-                              .toString())))
-                          : (cartController.totalPrice +
-                          cartController.totalTax +
-                          (isDelivery == false
-                              ? 0
-                              : (cartController.productShippingCharge +
-                              cartController.shippingAreaCost.value)) +
-                          (selectedFloorIndex ?? 0) * 5), // إضافة التكلفة للطابق المختار
-                      floorIndex: selectedFloorIndex ?? 0, // إذا كانت selectedFloorIndex null، تعيينها إلى 0
+                              cartController.shippingAreaCost.value))
+                          ) ,// إضافة السعر إلى المجموع
+                      floorIndex: totalPrice ,
                       onTap: () {
                         if (isDelivery == true) {
                           if (showAddressController.selectedAddressIndex.value == -1) {
@@ -815,6 +953,7 @@ class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
                               AppColor.error,
                             );
                           } else {
+
                             Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => PaymentScreen(isDelivery)),
                             );
@@ -836,9 +975,7 @@ class _ShippingInformationScreenState extends State<ShippingInformationScreen> {
                       buttonText: "Save & Pay".tr,
                     );
                   }),
-                  SizedBox(
-                    height: 20.h,
-                  ),
+                  SizedBox(height: 20.h),
                 ],
               ),
             ),
