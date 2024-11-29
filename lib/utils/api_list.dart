@@ -1,5 +1,5 @@
 class ApiList {
-  static const baseUrl = "https://gas.t8nat.cloud";
+  static const baseUrl = "https://gas.t8nat.cloud/";
   static const licenseCode = ""; // x-api-key
   static const login = "$baseUrl/api/auth/login";
   static const forgotPassword = "$baseUrl/api/auth/forgot-password";
